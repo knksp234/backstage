@@ -1,5 +1,14 @@
 # @backstage/plugin-scaffolder-backend
 
+## 0.15.17
+
+### Patch Changes
+
+- eec0750d8d: Makes cookiecutter a default, but optional action based on if a containerRunner argument is passed in to createRouter or createBuiltinActions
+- ed52f74ab3: Adding changes to create GitLab Merge Request using custom action
+- Updated dependencies
+  - @backstage/backend-common@0.9.14
+
 ## 0.15.16
 
 ### Patch Changes
