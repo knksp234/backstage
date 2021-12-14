@@ -14,46 +14,69 @@
  * limitations under the License.
  */
 
-import { FetchFunction, FetchMiddleware } from './types';
-
-const DEFAULT_HEADER_NAME = 'backstage-token';
+import { Config } from '@backstage/config';
+import { IdentityApi } from '@backstage/core-plugin-api';
+import { FetchMiddleware } from './types';
 
 /**
  * A fetch middleware, which injects a Backstage token header when the user is
  * signed in.
- *
- * @public
  */
 export class IdentityAwareFetchMiddleware implements FetchMiddleware {
-  private headerName: string;
-  private tokenFunction: () => Promise<string | undefined>;
+  static create(options: {
+    identityApi: IdentityApi;
+    config?: Config;
+    urlPrefixAllowlist?: string[];
+    header?: {
+      name: string;
+      value: (pluginId: string) => string;
+    };
+  }): IdentityAwareFetchMiddleware {
+    const allowlist: string[] = [];
+    if (options.urlPrefixAllowlist) {
+      allowlist.push(...options.urlPrefixAllowlist);
+    } else if (options.config) {
+      allowlist.push(options.config.getString('backend.baseUrl'));
+    }
 
-  constructor(tokenFunction: () => Promise<string | undefined>) {
-    this.headerName = DEFAULT_HEADER_NAME;
-    this.tokenFunction = tokenFunction;
+    const headerName = options.header?.name || 'authorization';
+    const headerValue = options.header?.value || (token => `Bearer ${token}`);
+
+    return new IdentityAwareFetchMiddleware(
+      options.identityApi,
+      allowlist.map(prefix => prefix.replace(/\/$/, '')),
+      headerName,
+      headerValue,
+    );
   }
 
-  /**
-   * {@inheritdoc FetchMiddleware.apply}
-   */
-  apply(next: FetchFunction): FetchFunction {
+  constructor(
+    public readonly identityApi: IdentityApi,
+    public readonly urlPrefixAllowlist: string[],
+    public readonly headerName: string,
+    public readonly headerValue: (pluginId: string) => string,
+  ) {}
+
+  apply(next: typeof fetch): typeof fetch {
     return async (input, init) => {
-      const token = await this.tokenFunction();
-      if (typeof token !== 'string') {
+      // Skip this middleware if the header already exists, or if the URL
+      // doesn't match any of the allowlist items, or if there was no token
+      const request = new Request(input, init);
+      const { token } = await this.identityApi.getCredentials();
+      if (
+        request.headers.get(this.headerName) ||
+        !this.urlPrefixAllowlist.some(
+          prefix =>
+            request.url === prefix || request.url.startsWith(`${prefix}/`),
+        ) ||
+        typeof token !== 'string' ||
+        !token
+      ) {
         return next(input, init);
       }
 
-      const request = new Request(input, init);
-      request.headers.set(this.headerName, token);
+      request.headers.set(this.headerName, this.headerValue(token));
       return next(request);
     };
-  }
-
-  /**
-   * Changes the header name from the default value to a custom one.
-   */
-  setHeaderName(name: string): IdentityAwareFetchMiddleware {
-    this.headerName = name;
-    return this;
   }
 }

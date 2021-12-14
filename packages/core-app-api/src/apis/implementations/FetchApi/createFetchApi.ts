@@ -15,8 +15,7 @@
  */
 
 import { FetchApi } from '@backstage/core-plugin-api';
-import crossFetch from 'cross-fetch';
-import { FetchFunction, FetchMiddleware } from './types';
+import { FetchMiddleware } from './types';
 
 /**
  * Builds a fetch API, based on the builtin fetch wrapped by a set of optional
@@ -24,32 +23,18 @@ import { FetchFunction, FetchMiddleware } from './types';
  *
  * @public
  */
-export class FetchApiBuilder {
-  static create(): FetchApiBuilder {
-    return new FetchApiBuilder(crossFetch, []);
+export function createFetchApi(options: {
+  baseImplementation?: typeof fetch | undefined;
+  middleware?: FetchMiddleware | FetchMiddleware[] | undefined;
+}): FetchApi {
+  let result = options.baseImplementation || global.fetch;
+
+  const middleware = options.middleware ? [options.middleware].flat() : [];
+  for (const m of middleware) {
+    result = m.apply(result);
   }
 
-  private constructor(
-    private readonly implementation: FetchFunction,
-    private readonly middleware: FetchMiddleware[],
-  ) {}
-
-  with(middleware: FetchMiddleware): FetchApiBuilder {
-    return new FetchApiBuilder(this.implementation, [
-      ...this.middleware,
-      middleware,
-    ]);
-  }
-
-  build(): FetchApi {
-    let result = this.implementation;
-
-    for (const m of this.middleware) {
-      result = m.apply(result);
-    }
-
-    return {
-      fetch: result,
-    };
-  }
+  return {
+    fetch: result,
+  };
 }
