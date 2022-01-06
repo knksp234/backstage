@@ -69,5 +69,5 @@ spec:
     displayName: Satya Praveen
     email: satya.praveen@groww.in
     picture: https://avatars.dicebear.com/api/avataaars/nigel-manning@example.com.svg?background=%23fff
-  memberOf: [team-a]
+  memberOf: [team-a,infrastructure,boxoffice,backstage,team-c,team-d,team-b]
   
